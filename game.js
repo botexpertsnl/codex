@@ -151,6 +151,8 @@ const ui = {
   moneyValue: document.getElementById('moneyValue'),
   respectValue: document.getElementById('respectValue'),
   reputationValue: document.getElementById('reputationValue'),
+  crewCountValue: document.getElementById('crewCountValue'),
+  currentRegionValue: document.getElementById('currentRegionValue'),
   regionMap: document.getElementById('regionMap'),
   regionMeta: document.getElementById('regionMeta'),
   regionCrewSummary: document.getElementById('regionCrewSummary'),
@@ -160,13 +162,16 @@ const ui = {
   streetList: document.getElementById('streetList'),
   shopList: document.getElementById('shopList'),
   crewPanel: document.getElementById('crewPanel'),
+  profileSummary: document.getElementById('profileSummary'),
   propertyList: document.getElementById('propertyList'),
   crimePanel: document.getElementById('crimePanel'),
   activityLog: document.getElementById('activityLog'),
   modal: document.getElementById('modal'),
   modalTitle: document.getElementById('modalTitle'),
   modalMessage: document.getElementById('modalMessage'),
-  modalClose: document.getElementById('modalClose')
+  modalClose: document.getElementById('modalClose'),
+  tabButtons: document.querySelectorAll('.tab-btn'),
+  panels: document.querySelectorAll('.panel')
 };
 
 const fmtMoney = (v) => `$${Math.floor(v).toLocaleString()}`;
@@ -370,6 +375,8 @@ function renderTopBar() {
   ui.moneyValue.textContent = fmtMoney(player.money);
   ui.respectValue.textContent = Math.floor(player.xp);
   ui.reputationValue.textContent = Math.floor(player.reputation);
+  ui.crewCountValue.textContent = player.crewMembers.filter((m) => m.status !== 'Killed').length;
+  ui.currentRegionValue.textContent = player.selectedRegion;
 }
 
 function renderRegionMap() {
@@ -667,8 +674,8 @@ function renderCrew() {
   ui.crewPanel.appendChild(crewList);
 }
 
-function collectPropertyIncome(propertyId) {
-  const region = getRegion();
+function collectPropertyIncome(regionName, propertyId) {
+  const region = state.regions.find((r) => r.name === regionName);
   const property = region.properties.find((p) => p.id === propertyId);
   const collected = Math.floor(property.storedMoney);
   if (collected <= 0) return showModal('No Collection', `${property.name} has no stored income yet.`);
@@ -682,36 +689,43 @@ function collectPropertyIncome(propertyId) {
 }
 
 function renderProperties() {
-  const region = getRegion();
   ui.propertyList.innerHTML = '';
 
-  region.properties.forEach((property) => {
-    const maxStorage = property.storage * Math.max(1, property.owned);
-    const card = document.createElement('div');
-    card.className = 'property-card';
-    card.innerHTML = `
-      <div class="row"><strong>${property.name}</strong><span class="badge neutral">Owned ${property.owned}</span></div>
-      <div class="muted">Stored ${fmtMoney(property.storedMoney)} / ${fmtMoney(maxStorage)} · Rate ${fmtMoney(property.incomePerMinute)}/min each</div>
-      <div class="muted">Price ${fmtMoney(property.price)} · Manual collection required</div>
-      <div class="inline-actions">
-        <button class="btn primary" data-action="buy" ${player.money < property.price ? 'disabled' : ''}>Buy</button>
-        <button class="btn dark" data-action="collect" ${property.owned < 1 ? 'disabled' : ''}>Collect</button>
-      </div>
-    `;
+  state.regions.forEach((region) => {
+    const group = document.createElement('div');
+    group.className = 'crew-card';
+    group.innerHTML = `<strong>${region.name}</strong><div class="muted">${region.difficultyTag}</div>`;
 
-    card.querySelector('[data-action="buy"]').addEventListener('click', () => {
-      player.money -= property.price;
-      property.owned += 1;
-      player.xp += 10;
-      property.lastUpdate = state.now;
-      addLog(`${property.name} purchased in ${region.name}.`);
-      showModal('Property Purchased', `${property.name} acquired. Income must still be collected manually.`);
-      recalcLevel();
-      renderAll();
+    region.properties.forEach((property) => {
+      const maxStorage = property.storage * Math.max(1, property.owned);
+      const card = document.createElement('div');
+      card.className = 'property-card';
+      card.innerHTML = `
+        <div class="row"><strong>${property.name}</strong><span class="badge neutral">Owned ${property.owned}</span></div>
+        <div class="muted">Stored ${fmtMoney(property.storedMoney)} / ${fmtMoney(maxStorage)} · Rate ${fmtMoney(property.incomePerMinute)}/min each</div>
+        <div class="muted">Price ${fmtMoney(property.price)} · Manual collection required</div>
+        <div class="inline-actions">
+          <button class="btn primary" data-action="buy" ${player.money < property.price ? 'disabled' : ''}>Buy</button>
+          <button class="btn dark" data-action="collect" ${property.owned < 1 ? 'disabled' : ''}>Collect</button>
+        </div>
+      `;
+
+      card.querySelector('[data-action="buy"]').addEventListener('click', () => {
+        player.money -= property.price;
+        property.owned += 1;
+        player.xp += 10;
+        property.lastUpdate = state.now;
+        addLog(`${property.name} purchased in ${region.name}.`);
+        showModal('Property Purchased', `${property.name} acquired in ${region.name}. Income must still be collected manually.`);
+        recalcLevel();
+        renderAll();
+      });
+
+      card.querySelector('[data-action="collect"]').addEventListener('click', () => collectPropertyIncome(region.name, property.id));
+      group.appendChild(card);
     });
 
-    card.querySelector('[data-action="collect"]').addEventListener('click', () => collectPropertyIncome(property.id));
-    ui.propertyList.appendChild(card);
+    ui.propertyList.appendChild(group);
   });
 }
 
@@ -827,6 +841,27 @@ function renderLog() {
   });
 }
 
+function renderProfile() {
+  const arrested = player.crewMembers.filter((m) => m.status === 'Arrested').length;
+  const killed = player.crewMembers.filter((m) => m.status === 'Killed').length;
+  const controlledStreets = state.regions.reduce((sum, r) => sum + r.streets.filter((s) => s.ownerType === 'player').length, 0);
+  ui.profileSummary.innerHTML = `
+    <div class="crew-card">
+      <div class="row"><strong>Profile Overview</strong><span class="badge neutral">${player.rank}</span></div>
+      <div class="muted">Level ${player.level} · XP ${Math.floor(player.xp)} · Reputation ${Math.floor(player.reputation)}</div>
+      <div class="muted">Money ${fmtMoney(player.money)} · Controlled Streets ${controlledStreets}</div>
+      <div class="muted">Crew Active ${player.crewMembers.filter((m) => m.status !== 'Killed').length} · Arrested ${arrested} · Killed ${killed}</div>
+    </div>
+  `;
+}
+
+function switchTab(tab) {
+  ui.panels.forEach((p) => p.classList.remove('active'));
+  const target = document.getElementById(`panel-${tab}`);
+  if (target) target.classList.add('active');
+  ui.tabButtons.forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
+}
+
 function renderAll() {
   renderTopBar();
   renderRegionMap();
@@ -836,6 +871,7 @@ function renderAll() {
   renderCrew();
   renderCrimes();
   renderProperties();
+  renderProfile();
   renderLog();
 }
 
@@ -847,6 +883,7 @@ function getCooldownLeft(id) {
 function init() {
   addLog('System online: rebalanced takeovers + full crew status visibility.');
   ui.modalClose.addEventListener('click', () => ui.modal.classList.add('hidden'));
+  ui.tabButtons.forEach((btn) => btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
 
   setInterval(() => {
     updateEconomyStorage();

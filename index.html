@@ -9,49 +9,71 @@
   <body>
     <div class="app">
       <header class="top-bar">
-        <div class="stat-pill"><span>Level</span><strong id="levelValue">1</strong></div>
         <div class="stat-pill"><span>Rank</span><strong id="rankValue">Small Hustler</strong></div>
         <div class="stat-pill"><span>Money</span><strong id="moneyValue">$0</strong></div>
         <div class="stat-pill"><span>XP</span><strong id="respectValue">0</strong></div>
-        <div class="stat-pill"><span>Reputation</span><strong id="reputationValue">0</strong></div>
+        <div class="stat-pill"><span>Crew</span><strong id="crewCountValue">0</strong></div>
+        <div class="stat-pill"><span>Region</span><strong id="currentRegionValue">Old Town</strong></div>
       </header>
 
+      <nav class="tab-nav" aria-label="Main navigation">
+        <button class="tab-btn active" data-tab="map">MAP</button>
+        <button class="tab-btn" data-tab="crew">CREW</button>
+        <button class="tab-btn" data-tab="crimes">CRIMES</button>
+        <button class="tab-btn" data-tab="properties">PROPERTIES</button>
+        <button class="tab-btn" data-tab="profile">PROFILE</button>
+      </nav>
+
       <main class="main-content">
-        <section class="region-selector card">
-          <h2>Region Selector</h2>
-          <p id="regionMeta" class="muted"></p>
-          <div id="regionCrewSummary" class="summary-pills"></div>
-          <div id="regionMap" class="region-map"></div>
+        <section class="panel active" id="panel-map">
+          <section class="region-selector card">
+            <h2>City Map & Regions</h2>
+            <p id="regionMeta" class="muted"></p>
+            <div id="regionCrewSummary" class="summary-pills"></div>
+            <div id="regionMap" class="region-map"></div>
+          </section>
+
+          <section class="card">
+            <h2>Street Control - <span id="selectedRegionLabel"></span></h2>
+            <div id="streetList" class="stack"></div>
+          </section>
+
+          <section class="card">
+            <h2>Shops - <span id="selectedStreetLabel">Select a street</span></h2>
+            <div id="shopList" class="stack"></div>
+          </section>
         </section>
 
-        <section class="card">
-          <h2>Street Control - <span id="selectedRegionLabel"></span></h2>
-          <div id="streetList" class="stack"></div>
+        <section class="panel" id="panel-crew">
+          <section class="card">
+            <h2>Crew Management</h2>
+            <div id="crewPanel" class="stack"></div>
+          </section>
         </section>
 
-        <section class="card">
-          <h2>Shops - <span id="selectedStreetLabel">Select a street</span></h2>
-          <div id="shopList" class="stack"></div>
+        <section class="panel" id="panel-crimes">
+          <section class="card">
+            <h2>Crime Activities</h2>
+            <div id="crimePanel" class="stack"></div>
+          </section>
         </section>
 
-        <section class="card">
-          <h2>Crew (Region Context)</h2>
-          <div id="crewPanel" class="stack"></div>
+        <section class="panel" id="panel-properties">
+          <section class="card">
+            <h2>Properties (Grouped by Region)</h2>
+            <div id="propertyList" class="stack"></div>
+          </section>
         </section>
 
-        <section class="card">
-          <h2>Crime Activities</h2>
-          <div id="crimePanel" class="stack"></div>
-        </section>
-
-        <section class="card">
-          <h2>Properties - <span id="propertyRegionLabel"></span></h2>
-          <div id="propertyList" class="stack"></div>
-        </section>
-
-        <section class="card">
-          <h2>Activity Log</h2>
-          <div id="activityLog" class="log-list"></div>
+        <section class="panel" id="panel-profile">
+          <section class="card">
+            <h2>Boss Profile</h2>
+            <div id="profileSummary" class="stack"></div>
+          </section>
+          <section class="card">
+            <h2>Activity Log</h2>
+            <div id="activityLog" class="log-list"></div>
+          </section>
         </section>
       </main>
     </div>
