@@ -1,583 +1,603 @@
-/*
-  Empire of Shadows - Mobile-first mafia strategy MVP
-  - Core loop: capture streets, recruit crew, buy properties/upgrades, collect income, rank up.
-*/
+// Empire of Shadows - Region-based mobile mafia strategy MVP
 
-const RANKS = [
-  { name: 'Street Rat', respectRequired: 0 },
-  { name: 'Thug', respectRequired: 120 },
-  { name: 'Gangster', respectRequired: 300 },
-  { name: 'Capo', respectRequired: 620 },
-  { name: 'Underboss', respectRequired: 1050 },
-  { name: 'Don', respectRequired: 1650 }
-];
+const RANKS = ['Small Hustler', 'Street Rat', 'Thug', 'Gangster', 'Capo', 'Underboss', 'Don'];
+const LEVEL_THRESHOLDS = [0, 120, 300, 560, 920, 1400, 2000, 2800];
 
 const CREW_TYPES = [
-  { id: 'street-thug', name: 'Street Thug', cost: 110, attack: 3, defense: 1, description: 'Cheap muscle for quick expansion.' },
-  { id: 'enforcer', name: 'Enforcer', cost: 260, attack: 5, defense: 4, description: 'Reliable pressure and intimidation.' },
-  { id: 'hitman', name: 'Hitman', cost: 480, attack: 9, defense: 2, description: 'High offensive power for takeovers.' },
-  { id: 'bodyguard', name: 'Bodyguard', cost: 420, attack: 2, defense: 8, description: 'Defensive specialist for your turf.' }
+  { id: 'thug', name: 'Street Thug', unlockLevel: 1, cost: 120, attack: 2, intimidation: 3, survival: 0.55, upkeep: 1 },
+  { id: 'gangster', name: 'Gangster', unlockLevel: 2, cost: 260, attack: 4, intimidation: 5, survival: 0.72, upkeep: 2 },
+  { id: 'enforcer', name: 'Enforcer', unlockLevel: 4, cost: 420, attack: 6, intimidation: 6, survival: 0.8, upkeep: 3 },
+  { id: 'soldier', name: 'Soldier', unlockLevel: 6, cost: 700, attack: 9, intimidation: 5, survival: 0.82, upkeep: 4 },
+  { id: 'bodyguard', name: 'Bodyguard', unlockLevel: 5, cost: 600, attack: 3, intimidation: 3, survival: 0.9, upkeep: 3 }
 ];
 
+const SHOP_TYPES = ['Bakery', 'Pawn Shop', 'Liquor Store', 'Cafe', 'Butcher', 'Tailor', 'Barber', 'Electronics', 'Bookstore'];
 const PROPERTY_TYPES = [
-  { id: 'bar', name: 'Bar', cost: 400, income: 25, description: 'A local front and protection income.' },
-  { id: 'nightclub', name: 'Nightclub', cost: 900, income: 65, description: 'Cash-heavy operation with nightlife ties.' },
-  { id: 'warehouse', name: 'Warehouse', cost: 1300, income: 100, description: 'Storage and distribution hub.' },
-  { id: 'casino', name: 'Casino', cost: 2100, income: 165, description: 'High-risk, high-reward money stream.' }
+  { id: 'bar', name: 'Bar', baseCost: 450, income: 35, bonus: 'Recruit boost' },
+  { id: 'nightclub', name: 'Nightclub', baseCost: 900, income: 78, bonus: 'Reputation boost' },
+  { id: 'gambling-house', name: 'Gambling House', baseCost: 1250, income: 105, bonus: 'Respect boost' },
+  { id: 'warehouse', name: 'Warehouse', baseCost: 1500, income: 120, bonus: 'Takeover prep' },
+  { id: 'casino', name: 'Casino', baseCost: 2200, income: 185, bonus: 'Large passive income' },
+  { id: 'safehouse', name: 'Safehouse', baseCost: 1700, income: 85, bonus: 'Crew survival bonus' }
 ];
 
-const ITEM_TYPES = [
-  { id: 'knife', name: 'Knife', cost: 120, attack: 2, defense: 0, description: 'Basic close combat edge.' },
-  { id: 'pistol', name: 'Pistol', cost: 350, attack: 6, defense: 0, description: 'A practical street equalizer.' },
-  { id: 'body-armor', name: 'Body Armor', cost: 520, attack: 0, defense: 6, description: 'Essential protection for survival.' },
-  { id: 'armored-car', name: 'Armored Car', cost: 1100, attack: 2, defense: 11, description: 'Secure movement through hostile zones.' },
-  { id: 'safehouse-security', name: 'Safehouse Security', cost: 1600, attack: 0, defense: 17, description: 'Fortified base operations.' }
-];
-
-const OWNER_LABELS = {
-  neutral: 'Neutral',
-  rival: 'Rival',
-  player: 'Your Crew'
+const REGION_LAYOUT = {
+  Downtown: { x: 35, y: 16, w: 30, h: 24 },
+  Harbor: { x: 6, y: 56, w: 34, h: 28 },
+  Chinatown: { x: 60, y: 54, w: 34, h: 28 },
+  'Industrial Zone': { x: 6, y: 18, w: 24, h: 30 },
+  'Old Town': { x: 72, y: 16, w: 22, h: 30 }
 };
 
-const ownerPool = ['neutral', 'rival', 'neutral', 'rival', 'neutral'];
-
-const districtDefinitions = [
-  { name: 'Downtown', streets: ['King Ave', 'Gilded Row', 'Mercer Alley', 'Jade Street', 'Union Blvd'] },
-  { name: 'Harbor', streets: ['Dockline Road', 'Pier 7 Lane', 'Captain Way', 'Salt Market', 'Anchor Street'] },
-  { name: 'Chinatown', streets: ['Lotus Road', 'Red Lantern St', 'Silk Passage', 'Temple Court', 'Dragon Gate'] },
-  { name: 'Industrial Zone', streets: ['Iron Yard', 'Boiler Avenue', 'Foundry Street', 'Coal Belt', 'Machine Row'] },
-  { name: 'Old Town', streets: ['Bell Tower Rd', 'Cathedral Lane', 'Cobble Street', 'Raven Square', 'Heritage Way'] }
+const REGION_DEFS = [
+  { name: 'Downtown', danger: 7, wealth: 9, police: 7, bonus: 'High-end extortion profits', rival: 'Vespri Family' },
+  { name: 'Harbor', danger: 5, wealth: 6, police: 4, bonus: 'Smuggling routes', rival: 'Dockside Union' },
+  { name: 'Chinatown', danger: 6, wealth: 7, police: 6, bonus: 'Fast intimidation actions', rival: 'Jade Circle' },
+  { name: 'Industrial Zone', danger: 4, wealth: 5, police: 3, bonus: 'Cheap fortification', rival: 'Steel Hand' },
+  { name: 'Old Town', danger: 3, wealth: 4, police: 2, bonus: 'Easy starter influence', rival: 'No major family' }
 ];
 
-const districtMapLayout = {
-  Downtown: { x: 33, y: 20, w: 34, h: 24 },
-  Harbor: { x: 5, y: 58, w: 34, h: 26 },
-  Chinatown: { x: 62, y: 56, w: 33, h: 26 },
-  'Industrial Zone': { x: 5, y: 20, w: 26, h: 30 },
-  'Old Town': { x: 71, y: 18, w: 24, h: 30 }
+const STREET_NAMES = {
+  Downtown: ['King Ave', 'Mercer Alley', 'Union Blvd', 'Silver Court', 'Embassy Row'],
+  Harbor: ['Dockline Road', 'Salt Market', 'Anchor Street', 'Pier 7 Lane', 'Captain Way'],
+  Chinatown: ['Lotus Road', 'Temple Court', 'Red Lantern St', 'Silk Passage', 'Dragon Gate'],
+  'Industrial Zone': ['Iron Yard', 'Foundry Street', 'Boiler Avenue', 'Coal Belt', 'Machine Row'],
+  'Old Town': ['Bell Tower Rd', 'Cobble Street', 'Raven Square', 'Cathedral Lane', 'Heritage Way']
 };
 
 const player = {
-  name: 'Vincenzo "Vin" Russo',
-  rank: 'Street Rat',
-  money: 650,
+  level: 1,
+  rank: RANKS[0],
+  money: 1400,
   respect: 0,
-  crewSize: 0,
-  baseAttack: 8,
-  baseDefense: 7,
-  attack: 8,
-  defense: 7,
-  ownedStreets: 0,
-  ownedProperties: 0,
-  crew: {},
-  properties: {},
-  items: {}
+  reputation: 0,
+  influence: 100,
+  crewPool: { thug: 5, gangster: 0, enforcer: 0, soldier: 0, bodyguard: 0 },
+  globalCrewLost: 0,
+  selectedRegion: 'Old Town',
+  selectedStreetId: null,
+  log: []
 };
 
-const city = districtDefinitions.map((district, districtIndex) => ({
-  name: district.name,
-  securityBoost: 0,
-  streets: district.streets.map((streetName, streetIndex) => {
-    const owner = ownerPool[(streetIndex + districtIndex) % ownerPool.length];
-    const baseIncome = 24 + districtIndex * 7 + streetIndex * 5;
-    const defense = 12 + districtIndex * 4 + streetIndex * 2 + (owner === 'rival' ? 7 : 0);
+const state = {
+  regions: createRegions(),
+  now: Date.now()
+};
+
+function createRegions() {
+  return REGION_DEFS.map((regionDef, index) => {
+    const streets = STREET_NAMES[regionDef.name].map((streetName, i) => {
+      const incomePotential = 25 + regionDef.wealth * 6 + i * 6;
+      const difficulty = 10 + regionDef.danger * 4 + i * 3;
+      const rivalOwned = i >= 3 && regionDef.name !== 'Old Town';
+      const ownerType = rivalOwned ? 'rival' : i % 2 === 0 ? 'neutral' : 'rival';
+      const shopCount = 3 + ((index + i) % 8);
+      const requiredCrewPresence = 1 + Math.floor((difficulty - 8) / 12);
+      return {
+        id: `${regionDef.name}-${streetName}`.replace(/\s+/g, '-').toLowerCase(),
+        name: streetName,
+        region: regionDef.name,
+        incomePotential,
+        difficulty,
+        ownerType,
+        controlState: ownerType === 'player' ? 'controlled' : 'contested',
+        shops: createShops(streetName, shopCount, incomePotential),
+        assignedCrew: { thug: 0, gangster: 0, enforcer: 0, soldier: 0, bodyguard: 0 },
+        requiredCrewPresence,
+        takeoverCooldownEnd: 0
+      };
+    });
+
     return {
-      id: `${district.name}-${streetName}`.toLowerCase().replace(/\s+/g, '-'),
-      districtName: district.name,
-      name: streetName,
-      owner,
-      income: baseIncome,
-      defense
+      ...regionDef,
+      controlState: 'contested',
+      properties: PROPERTY_TYPES.map((prop, idx) => ({ ...prop, owned: 0, cost: prop.baseCost + idx * 60 + index * 100 })),
+      streets,
+      shopNetwork: streets.reduce((sum, s) => sum + s.shops.length, 0)
     };
-  })
-}));
+  });
+}
+
+function createShops(streetName, count, baseIncome) {
+  const shops = [];
+  for (let i = 0; i < count; i += 1) {
+    const type = SHOP_TYPES[i % SHOP_TYPES.length];
+    shops.push({
+      id: `${streetName}-${i}`.replace(/\s+/g, '-').toLowerCase(),
+      shopName: `${type} #${i + 1}`,
+      shopType: type,
+      loyaltyFear: 20 + Math.floor(Math.random() * 60),
+      incomeAmount: Math.floor(baseIncome * (0.22 + Math.random() * 0.5)),
+      status: 'not approached',
+      assignedGangster: null,
+      actionEnd: 0,
+      actionType: null
+    });
+  }
+  return shops;
+}
 
 const ui = {
-  moneyValue: document.getElementById('moneyValue'),
+  levelValue: document.getElementById('levelValue'),
   rankValue: document.getElementById('rankValue'),
+  moneyValue: document.getElementById('moneyValue'),
   respectValue: document.getElementById('respectValue'),
-  cityMap: document.getElementById('cityMap'),
+  reputationValue: document.getElementById('reputationValue'),
   regionMap: document.getElementById('regionMap'),
-  crewList: document.getElementById('crewList'),
+  regionMeta: document.getElementById('regionMeta'),
+  selectedRegionLabel: document.getElementById('selectedRegionLabel'),
+  selectedStreetLabel: document.getElementById('selectedStreetLabel'),
+  propertyRegionLabel: document.getElementById('propertyRegionLabel'),
+  streetList: document.getElementById('streetList'),
+  shopList: document.getElementById('shopList'),
+  crewPanel: document.getElementById('crewPanel'),
   propertyList: document.getElementById('propertyList'),
-  itemList: document.getElementById('itemList'),
-  profileCard: document.getElementById('profileCard'),
-  navButtons: document.querySelectorAll('.nav-btn'),
-  panels: document.querySelectorAll('.panel'),
-  regionDrawer: document.getElementById('regionDrawer'),
-  regionName: document.getElementById('regionName'),
-  regionDetails: document.getElementById('regionDetails'),
-  collectRegionBtn: document.getElementById('collectRegionBtn'),
-  fortifyRegionBtn: document.getElementById('fortifyRegionBtn'),
-  viewStreetsBtn: document.getElementById('viewStreetsBtn'),
-  closeRegionDrawer: document.getElementById('closeRegionDrawer'),
-  streetDrawer: document.getElementById('streetDrawer'),
-  streetName: document.getElementById('streetName'),
-  streetDetails: document.getElementById('streetDetails'),
-  takeoverBtn: document.getElementById('takeoverBtn'),
-  closeDrawer: document.getElementById('closeDrawer'),
-  toast: document.getElementById('toast')
+  activityLog: document.getElementById('activityLog'),
+  modal: document.getElementById('modal'),
+  modalTitle: document.getElementById('modalTitle'),
+  modalMessage: document.getElementById('modalMessage'),
+  modalClose: document.getElementById('modalClose')
 };
 
-let selectedStreet = null;
-let selectedDistrict = null;
-let toastTimer = null;
+function fmtMoney(v) { return `$${Math.floor(v).toLocaleString()}`; }
+function getRegion() { return state.regions.find((r) => r.name === player.selectedRegion); }
+function getStreet(region, streetId) { return region.streets.find((s) => s.id === streetId); }
+function secondsLeft(end) { return Math.max(0, Math.ceil((end - state.now) / 1000)); }
 
-function formatMoney(amount) {
-  return `$${Math.floor(amount).toLocaleString()}`;
+function addLog(text) {
+  player.log.unshift(`[${new Date().toLocaleTimeString()}] ${text}`);
+  player.log = player.log.slice(0, 40);
 }
 
-function showToast(message) {
-  ui.toast.textContent = message;
-  ui.toast.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => ui.toast.classList.remove('show'), 1700);
+function showModal(title, message) {
+  ui.modalTitle.textContent = title;
+  ui.modalMessage.textContent = message;
+  ui.modal.classList.remove('hidden');
 }
 
-function getCount(collection, id) {
-  return collection[id] || 0;
+function getRankForLevel(level) {
+  return RANKS[Math.min(RANKS.length - 1, Math.floor((level - 1) / 1.2))];
 }
 
-function getStreetIncome() {
-  let total = 0;
-  city.forEach((district) => {
-    district.streets.forEach((street) => {
-      if (street.owner === 'player') {
-        total += street.income;
-      }
+function recalcLevel() {
+  let nextLevel = 1;
+  LEVEL_THRESHOLDS.forEach((threshold, idx) => {
+    if (player.respect >= threshold) nextLevel = idx + 1;
+  });
+  if (nextLevel !== player.level) {
+    player.level = nextLevel;
+    player.rank = getRankForLevel(nextLevel);
+    showModal('Level Up', `You reached level ${player.level} (${player.rank}). New crew and tougher regions unlocked.`);
+    addLog(`Level up! You are now ${player.rank}.`);
+  }
+}
+
+function computeRegionDominance(region) {
+  const controlled = region.streets.filter((s) => s.ownerType === 'player').length;
+  return Math.round((controlled / region.streets.length) * 100);
+}
+
+function upkeepTick() {
+  const totalCrew = Object.values(player.crewPool).reduce((a, b) => a + b, 0);
+  const cost = Math.floor(totalCrew * 0.6);
+  player.money = Math.max(0, player.money - cost);
+}
+
+function passiveIncomeTick() {
+  state.regions.forEach((region) => {
+    region.streets.forEach((street) => {
+      street.shops.forEach((shop) => {
+        if (shop.status === 'paying protection') {
+          player.money += Math.floor(shop.incomeAmount * 0.5);
+        }
+      });
+    });
+    region.properties.forEach((property) => {
+      if (property.owned > 0) player.money += property.income * property.owned;
     });
   });
-  return total;
 }
 
-function getPropertyIncome() {
-  return PROPERTY_TYPES.reduce((sum, property) => sum + getCount(player.properties, property.id) * property.income, 0);
+function updateTimersAndActions() {
+  state.now = Date.now();
+  state.regions.forEach((region) => {
+    region.streets.forEach((street) => {
+      street.shops.forEach((shop) => {
+        if (shop.actionEnd && state.now >= shop.actionEnd) {
+          resolveShopAction(region, street, shop);
+        }
+      });
+    });
+  });
 }
 
-function getTotalIncomePerTick() {
-  return getStreetIncome() + getPropertyIncome();
-}
+function resolveShopAction(region, street, shop) {
+  const crewType = shop.assignedGangster || 'thug';
+  const crewDef = CREW_TYPES.find((c) => c.id === crewType);
+  const assigned = street.assignedCrew[crewType] || 0;
+  if (assigned <= 0) {
+    shop.status = 'refusing';
+    clearShopAction(shop);
+    return;
+  }
 
-function getDistrictControlData(district) {
-  const total = district.streets.length;
-  const owned = district.streets.filter((street) => street.owner === 'player').length;
-  return { total, owned, controlPct: Math.round((owned / total) * 100) };
-}
+  const dangerPenalty = region.danger * 4 + region.police * 3;
+  const intimidationPower = crewDef.intimidation * 10 + player.level * 4 + assigned * 7;
+  const roll = intimidationPower - dangerPenalty + Math.floor(Math.random() * 30);
 
-function getDistrictDefenseBonus(districtName) {
-  const district = city.find((item) => item.name === districtName);
-  return district?.securityBoost || 0;
-}
-
-function recalculateStats() {
-  const crewAttack = CREW_TYPES.reduce((sum, crew) => sum + getCount(player.crew, crew.id) * crew.attack, 0);
-  const crewDefense = CREW_TYPES.reduce((sum, crew) => sum + getCount(player.crew, crew.id) * crew.defense, 0);
-  const itemAttack = ITEM_TYPES.reduce((sum, item) => sum + getCount(player.items, item.id) * item.attack, 0);
-  const itemDefense = ITEM_TYPES.reduce((sum, item) => sum + getCount(player.items, item.id) * item.defense, 0);
-
-  player.attack = player.baseAttack + crewAttack + itemAttack;
-  player.defense = player.baseDefense + crewDefense + itemDefense;
-  player.crewSize = CREW_TYPES.reduce((sum, crew) => sum + getCount(player.crew, crew.id), 0);
-  player.ownedProperties = PROPERTY_TYPES.reduce((sum, property) => sum + getCount(player.properties, property.id), 0);
-  player.ownedStreets = city.reduce(
-    (sum, district) =>
-      sum + district.streets.reduce((districtSum, street) => districtSum + (street.owner === 'player' ? 1 : 0), 0),
-    0
-  );
-}
-
-function updateRank() {
-  let currentRank = RANKS[0].name;
-  for (const rank of RANKS) {
-    if (player.respect >= rank.respectRequired) {
-      currentRank = rank.name;
+  let message = '';
+  if (roll >= 35) {
+    shop.status = 'paying protection';
+    player.respect += 8;
+    player.reputation += 3;
+    message = `${shop.shopName} now pays protection.`;
+  } else {
+    const riskRoll = Math.random();
+    if (riskRoll < 0.28) {
+      shop.status = 'refusing';
+      street.assignedCrew[crewType] = Math.max(0, street.assignedCrew[crewType] - 1);
+      player.globalCrewLost += 1;
+      message = `${shop.shopName} refused. One ${crewDef.name} was arrested.`;
+    } else if (riskRoll < 0.42) {
+      shop.status = 'refusing';
+      street.assignedCrew[crewType] = Math.max(0, street.assignedCrew[crewType] - 1);
+      player.globalCrewLost += 1;
+      message = `${shop.shopName} resisted. One ${crewDef.name} was killed.`;
+    } else {
+      shop.status = 'intimidated';
+      message = `${shop.shopName} is shaken but not paying yet.`;
     }
   }
-  if (player.rank !== currentRank) {
-    player.rank = currentRank;
-    showToast(`Promotion earned: ${currentRank}`);
-  }
+
+  clearShopAction(shop);
+  addLog(message);
+  showModal('Shop Pressure Result', message);
+}
+
+function clearShopAction(shop) {
+  shop.actionEnd = 0;
+  shop.actionType = null;
+}
+
+function selectRegion(name) {
+  player.selectedRegion = name;
+  player.selectedStreetId = null;
+  renderAll();
 }
 
 function renderTopBar() {
-  ui.moneyValue.textContent = formatMoney(player.money);
+  ui.levelValue.textContent = `${player.level}`;
   ui.rankValue.textContent = player.rank;
+  ui.moneyValue.textContent = fmtMoney(player.money);
   ui.respectValue.textContent = `${Math.floor(player.respect)}`;
+  ui.reputationValue.textContent = `${Math.floor(player.reputation)}`;
 }
 
 function renderRegionMap() {
   ui.regionMap.innerHTML = '';
-  city.forEach((district) => {
-    const control = getDistrictControlData(district);
-    const layout = districtMapLayout[district.name] || { x: 10, y: 10, w: 30, h: 22 };
-    const zone = document.createElement('button');
-    zone.type = 'button';
-    zone.className = 'region-zone';
-    zone.dataset.district = district.name;
-    zone.style.setProperty('--x', `${layout.x}%`);
-    zone.style.setProperty('--y', `${layout.y}%`);
-    zone.style.setProperty('--w', `${layout.w}%`);
-    zone.style.setProperty('--h', `${layout.h}%`);
-    zone.innerHTML = `
-      <span class="region-title">${district.name}</span>
-      <span class="region-meta">Control: ${control.owned}/${control.total} (${control.controlPct}%)</span>
-    `;
-
-    zone.addEventListener('mouseenter', () => zone.classList.add('active'));
-    zone.addEventListener('mouseleave', () => zone.classList.remove('active'));
-    zone.addEventListener('click', () => openRegionDrawer(district));
-    ui.regionMap.appendChild(zone);
+  state.regions.forEach((region) => {
+    const btn = document.createElement('button');
+    btn.className = `region-zone ${player.selectedRegion === region.name ? 'active' : ''}`;
+    btn.type = 'button';
+    btn.style.setProperty('--x', `${REGION_LAYOUT[region.name].x}%`);
+    btn.style.setProperty('--y', `${REGION_LAYOUT[region.name].y}%`);
+    btn.style.setProperty('--w', `${REGION_LAYOUT[region.name].w}%`);
+    btn.style.setProperty('--h', `${REGION_LAYOUT[region.name].h}%`);
+    const dominance = computeRegionDominance(region);
+    btn.innerHTML = `<strong>${region.name}</strong><small>Control ${dominance}%</small>`;
+    btn.addEventListener('click', () => selectRegion(region.name));
+    ui.regionMap.appendChild(btn);
   });
 }
 
-function renderCityMap() {
-  ui.cityMap.innerHTML = '';
-  city.forEach((district) => {
-    const districtCard = document.createElement('article');
-    districtCard.className = 'district-card';
-    districtCard.innerHTML = `<h3>${district.name}</h3>`;
+function renderRegionMeta() {
+  const region = getRegion();
+  const dominance = computeRegionDominance(region);
+  ui.selectedRegionLabel.textContent = region.name;
+  ui.propertyRegionLabel.textContent = region.name;
+  ui.regionMeta.textContent = `Danger ${region.danger}/10 · Wealth ${region.wealth}/10 · Police ${region.police}/10 · Rival: ${region.rival} · Bonus: ${region.bonus} · Dominance ${dominance}%`;
+}
 
-    const streetGrid = document.createElement('div');
-    streetGrid.className = 'street-grid';
+function ownerBadge(owner) {
+  if (owner === 'player') return '<span class="badge player">Player</span>';
+  if (owner === 'rival') return '<span class="badge rival">Rival Family</span>';
+  return '<span class="badge neutral">Neutral</span>';
+}
 
-    district.streets.forEach((street) => {
-      const streetButton = document.createElement('button');
-      streetButton.className = 'street-btn';
-      streetButton.type = 'button';
-      streetButton.dataset.owner = street.owner;
-      streetButton.innerHTML = `
-        <span class="street-title">${street.name}</span>
-        <span class="street-meta">${OWNER_LABELS[street.owner]} · ${formatMoney(street.income)}/tick</span>
-      `;
-      streetButton.addEventListener('click', () => openStreetDrawer(street));
-      streetGrid.appendChild(streetButton);
+function availableAssignedPower(street) {
+  return Object.entries(street.assignedCrew).reduce((sum, [id, count]) => {
+    const crew = CREW_TYPES.find((c) => c.id === id);
+    return sum + crew.attack * count;
+  }, 0);
+}
+
+function renderStreets() {
+  const region = getRegion();
+  ui.streetList.innerHTML = '';
+  region.streets.forEach((street) => {
+    const cooldown = secondsLeft(street.takeoverCooldownEnd);
+    const card = document.createElement('div');
+    card.className = 'street-card';
+    card.innerHTML = `
+      <div class="row"><strong>${street.name}</strong>${ownerBadge(street.ownerType)}</div>
+      <div class="muted">Income ${fmtMoney(street.incomePotential)} · Difficulty ${street.difficulty} · Shops ${street.shops.length} · Required crew ${street.requiredCrewPresence}</div>
+      <div class="row"><span class="muted">Assigned Power: ${availableAssignedPower(street)}</span><span class="timer">Cooldown: ${cooldown}s</span></div>
+      <div class="inline-actions">
+        <button class="btn dark" data-street="${street.id}" data-action="select">Select Street</button>
+        <button class="btn primary" data-street="${street.id}" data-action="takeover" ${cooldown > 0 ? 'disabled' : ''}>Take Over Street</button>
+      </div>
+    `;
+    card.querySelectorAll('button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const action = btn.dataset.action;
+        const sid = btn.dataset.street;
+        if (action === 'select') {
+          player.selectedStreetId = sid;
+          renderAll();
+        } else {
+          attemptTakeover(sid);
+        }
+      });
+    });
+    ui.streetList.appendChild(card);
+  });
+}
+
+function attemptTakeover(streetId) {
+  const region = getRegion();
+  const street = getStreet(region, streetId);
+  if (secondsLeft(street.takeoverCooldownEnd) > 0) return;
+
+  const assignedPower = availableAssignedPower(street);
+  const requiredPower = street.difficulty + region.danger * 3 + (street.ownerType === 'rival' ? 20 : 0);
+  const soldierCount = street.assignedCrew.soldier;
+
+  if (street.ownerType === 'rival' && player.level < 6) {
+    showModal('Takeover Blocked', 'Rival family turf requires higher level and Soldier crew unlocks.');
+    addLog(`Failed attack on ${street.name}: level too low for rival family.`);
+    return;
+  }
+
+  if (street.ownerType === 'rival' && soldierCount < 1) {
+    showModal('Takeover Blocked', 'You need at least 1 Soldier assigned to attack rival family streets.');
+    addLog(`Failed attack on ${street.name}: no Soldier assigned.`);
+    return;
+  }
+
+  const chance = Math.max(8, Math.min(92, 45 + (assignedPower - requiredPower) + player.level * 2 - region.police));
+  const roll = Math.floor(Math.random() * 100);
+  street.takeoverCooldownEnd = state.now + 60000;
+
+  let result = '';
+  if (roll < chance) {
+    street.ownerType = 'player';
+    street.controlState = 'controlled';
+    player.money += Math.floor(street.incomePotential * 0.7);
+    player.respect += 18;
+    player.reputation += 7;
+    result = `Success! ${street.name} captured. Street shops still need individual pressure.`;
+  } else {
+    player.respect += 5;
+    if (Math.random() < 0.38) {
+      const losses = Math.min(1, street.assignedCrew.thug);
+      street.assignedCrew.thug -= losses;
+      if (losses > 0) result = `Takeover failed. ${losses} thug arrested.`;
+    }
+    if (!result) result = 'Takeover failed. Crew escaped but territory held.';
+  }
+
+  addLog(`${street.name}: ${result}`);
+  showModal('Street Takeover Result', `${result} (Chance ${chance}%, Roll ${roll}%)`);
+  recalcLevel();
+  renderAll();
+}
+
+function renderShops() {
+  const region = getRegion();
+  const street = getStreet(region, player.selectedStreetId);
+  ui.shopList.innerHTML = '';
+
+  if (!street) {
+    ui.selectedStreetLabel.textContent = 'Select a street';
+    ui.shopList.innerHTML = '<p class="muted">Pick a street first. Region filtering is active.</p>';
+    return;
+  }
+
+  ui.selectedStreetLabel.textContent = `${street.name} (${region.name})`;
+
+  street.shops.forEach((shop) => {
+    const cooldown = secondsLeft(shop.actionEnd);
+    const crewOptions = CREW_TYPES.filter((c) => player.level >= c.unlockLevel).map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
+    const card = document.createElement('div');
+    card.className = 'shop-card';
+    card.innerHTML = `
+      <div class="row"><strong>${shop.shopName}</strong><span class="badge neutral">${shop.status}</span></div>
+      <div class="muted">Type ${shop.shopType} · Fear ${shop.loyaltyFear} · Income ${fmtMoney(shop.incomeAmount)}</div>
+      <div class="row"><span class="muted">Assigned: ${shop.assignedGangster || '-'}</span><span class="timer">Action Timer: ${cooldown}s</span></div>
+      <div class="inline-actions">
+        <select data-shop="${shop.id}" class="assign-select">${crewOptions}</select>
+        <button class="btn dark" data-shop="${shop.id}" data-action="assign">Assign</button>
+        <button class="btn warn" data-shop="${shop.id}" data-action="intimidate" ${cooldown > 0 ? 'disabled' : ''}>Intimidate / Bribe</button>
+      </div>
+    `;
+
+    card.querySelector('[data-action="assign"]').addEventListener('click', () => {
+      const value = card.querySelector('select').value;
+      shop.assignedGangster = value;
+      addLog(`${value} assigned to ${shop.shopName}.`);
+      renderShops();
     });
 
-    districtCard.appendChild(streetGrid);
-    ui.cityMap.appendChild(districtCard);
+    card.querySelector('[data-action="intimidate"]').addEventListener('click', () => startShopPressure(region, street, shop));
+
+    ui.shopList.appendChild(card);
   });
+}
+
+function startShopPressure(region, street, shop) {
+  const type = shop.assignedGangster || 'thug';
+  const assigned = street.assignedCrew[type] || 0;
+  if (street.ownerType !== 'player') {
+    showModal('Street Not Controlled', 'Capture this street first. Then pressure each shop owner one by one.');
+    return;
+  }
+  if (street.assignedCrew.thug < street.requiredCrewPresence) {
+    showModal('Insufficient Crew Presence', `Assign at least ${street.requiredCrewPresence} Street Thugs to this street first.`);
+    return;
+  }
+  if (assigned <= 0) {
+    showModal('No Assigned Gangster', `Assign at least 1 ${type} to this street before intimidation.`);
+    return;
+  }
+
+  shop.status = 'intimidated';
+  shop.actionType = 'pressure';
+  shop.actionEnd = state.now + (10000 + region.police * 800);
+  addLog(`Action started on ${shop.shopName}; results in ${secondsLeft(shop.actionEnd)}s.`);
+  renderShops();
 }
 
 function renderCrew() {
-  ui.crewList.innerHTML = '';
-  CREW_TYPES.forEach((crew) => {
-    const owned = getCount(player.crew, crew.id);
-    const card = document.createElement('article');
-    card.className = 'data-card';
-    card.innerHTML = `
-      <h3>${crew.name} (x${owned})</h3>
-      <p>${crew.description}</p>
-      <p>Attack +${crew.attack} · Defense +${crew.defense}</p>
-      <p>Cost: ${formatMoney(crew.cost)}</p>
-    `;
+  const region = getRegion();
+  ui.crewPanel.innerHTML = '';
 
-    const button = document.createElement('button');
-    button.className = 'secondary-btn';
-    button.type = 'button';
-    button.textContent = `Recruit ${crew.name}`;
-    button.addEventListener('click', () => purchaseCrew(crew));
-    card.appendChild(button);
-    ui.crewList.appendChild(card);
+  const recruitCard = document.createElement('div');
+  recruitCard.className = 'crew-card';
+  recruitCard.innerHTML = '<strong>Recruit Crew (global pool)</strong>';
+
+  CREW_TYPES.forEach((crew) => {
+    const unlocked = player.level >= crew.unlockLevel;
+    const row = document.createElement('div');
+    row.className = 'row';
+    row.innerHTML = `<span class="muted">${crew.name} (Pool: ${player.crewPool[crew.id]}) · Cost ${fmtMoney(crew.cost)} · Unlock L${crew.unlockLevel}</span>`;
+    const btn = document.createElement('button');
+    btn.className = 'btn dark';
+    btn.textContent = 'Recruit';
+    btn.disabled = !unlocked || player.money < crew.cost;
+    btn.addEventListener('click', () => {
+      player.money -= crew.cost;
+      player.crewPool[crew.id] += 1;
+      player.respect += 4;
+      player.reputation += 1;
+      addLog(`${crew.name} recruited.`);
+      showModal('Crew Recruited', `${crew.name} joined your network.`);
+      recalcLevel();
+      renderAll();
+    });
+    row.appendChild(btn);
+    recruitCard.appendChild(row);
   });
+  ui.crewPanel.appendChild(recruitCard);
+
+  const street = getStreet(region, player.selectedStreetId);
+  const assignCard = document.createElement('div');
+  assignCard.className = 'crew-card';
+  if (!street) {
+    assignCard.innerHTML = '<strong>Street Assignment</strong><p class="muted">Select a street to assign crew in this region.</p>';
+  } else {
+    assignCard.innerHTML = `<strong>Assign Crew to ${street.name}</strong>`;
+    CREW_TYPES.forEach((crew) => {
+      if (player.level < crew.unlockLevel) return;
+      const row = document.createElement('div');
+      row.className = 'row';
+      row.innerHTML = `<span class="muted">${crew.name}: assigned ${street.assignedCrew[crew.id]} (pool ${player.crewPool[crew.id]})</span>`;
+      const actions = document.createElement('div');
+      actions.className = 'inline-actions';
+      const plus = document.createElement('button');
+      plus.className = 'btn dark';
+      plus.textContent = '+1';
+      plus.disabled = player.crewPool[crew.id] < 1;
+      plus.addEventListener('click', () => {
+        player.crewPool[crew.id] -= 1;
+        street.assignedCrew[crew.id] += 1;
+        renderAll();
+      });
+      const minus = document.createElement('button');
+      minus.className = 'btn dark';
+      minus.textContent = '-1';
+      minus.disabled = street.assignedCrew[crew.id] < 1;
+      minus.addEventListener('click', () => {
+        street.assignedCrew[crew.id] -= 1;
+        player.crewPool[crew.id] += 1;
+        renderAll();
+      });
+      actions.append(plus, minus);
+      row.appendChild(actions);
+      assignCard.appendChild(row);
+    });
+  }
+  ui.crewPanel.appendChild(assignCard);
 }
 
 function renderProperties() {
+  const region = getRegion();
   ui.propertyList.innerHTML = '';
-  PROPERTY_TYPES.forEach((property) => {
-    const owned = getCount(player.properties, property.id);
-    const card = document.createElement('article');
-    card.className = 'data-card';
+  region.properties.forEach((property) => {
+    const card = document.createElement('div');
+    card.className = 'property-card';
     card.innerHTML = `
-      <h3>${property.name} (x${owned})</h3>
-      <p>${property.description}</p>
-      <p>Income: ${formatMoney(property.income)}/tick</p>
-      <p>Cost: ${formatMoney(property.cost)}</p>
+      <div class="row"><strong>${property.name}</strong><span class="badge neutral">Owned ${property.owned}</span></div>
+      <div class="muted">Cost ${fmtMoney(property.cost)} · Income ${fmtMoney(property.income)}/tick · ${property.bonus}</div>
     `;
-    const button = document.createElement('button');
-    button.className = 'secondary-btn';
-    button.type = 'button';
-    button.textContent = `Buy ${property.name}`;
-    button.addEventListener('click', () => purchaseProperty(property));
-    card.appendChild(button);
+    const btn = document.createElement('button');
+    btn.className = 'btn primary';
+    btn.textContent = 'Buy Property';
+    btn.disabled = player.money < property.cost;
+    btn.addEventListener('click', () => {
+      player.money -= property.cost;
+      property.owned += 1;
+      player.respect += 10;
+      player.reputation += 3;
+      addLog(`${property.name} purchased in ${region.name}.`);
+      showModal('Property Purchased', `${property.name} now generates passive income in ${region.name}.`);
+      recalcLevel();
+      renderAll();
+    });
+    card.appendChild(btn);
     ui.propertyList.appendChild(card);
   });
 }
 
-function renderItems() {
-  ui.itemList.innerHTML = '';
-  ITEM_TYPES.forEach((item) => {
-    const owned = getCount(player.items, item.id);
-    const card = document.createElement('article');
-    card.className = 'data-card';
-    card.innerHTML = `
-      <h3>${item.name} (x${owned})</h3>
-      <p>${item.description}</p>
-      <p>Attack +${item.attack} · Defense +${item.defense}</p>
-      <p>Cost: ${formatMoney(item.cost)}</p>
-    `;
-    const button = document.createElement('button');
-    button.className = 'secondary-btn';
-    button.type = 'button';
-    button.textContent = `Buy ${item.name}`;
-    button.addEventListener('click', () => purchaseItem(item));
-    card.appendChild(button);
-    ui.itemList.appendChild(card);
-  });
-}
-
-function renderProfile() {
-  const nextRank = RANKS.find((rank) => rank.respectRequired > player.respect);
-  const incomeTick = getTotalIncomePerTick();
-  const nextRankInfo = nextRank
-    ? `${nextRank.name} at ${nextRank.respectRequired} respect`
-    : 'Maximum rank reached';
-
-  ui.profileCard.innerHTML = `
-    <strong>${player.name}</strong><br>
-    Rank: ${player.rank}<br>
-    Crew Size: ${player.crewSize}<br>
-    Attack: ${player.attack}<br>
-    Defense: ${player.defense}<br>
-    Owned Streets: ${player.ownedStreets}<br>
-    Owned Properties: ${player.ownedProperties}<br>
-    Street Income: ${formatMoney(getStreetIncome())}/tick<br>
-    Property Income: ${formatMoney(getPropertyIncome())}/tick<br>
-    Total Income: ${formatMoney(incomeTick)}/tick<br>
-    Next Rank: ${nextRankInfo}
-  `;
-}
-
-function purchaseCrew(crew) {
-  if (player.money < crew.cost) {
-    showToast('Not enough cash to recruit.');
-    return;
-  }
-  player.money -= crew.cost;
-  player.crew[crew.id] = getCount(player.crew, crew.id) + 1;
-  player.respect += 12;
-  recalculateStats();
-  updateRank();
-  renderAll();
-  showToast(`${crew.name} recruited.`);
-}
-
-function purchaseProperty(property) {
-  if (player.money < property.cost) {
-    showToast('Not enough money for this business.');
-    return;
-  }
-  player.money -= property.cost;
-  player.properties[property.id] = getCount(player.properties, property.id) + 1;
-  player.respect += 15;
-  recalculateStats();
-  updateRank();
-  renderAll();
-  showToast(`${property.name} acquired.`);
-}
-
-function purchaseItem(item) {
-  if (player.money < item.cost) {
-    showToast('You cannot afford this upgrade yet.');
-    return;
-  }
-  player.money -= item.cost;
-  player.items[item.id] = getCount(player.items, item.id) + 1;
-  player.respect += 10;
-  recalculateStats();
-  updateRank();
-  renderAll();
-  showToast(`${item.name} purchased.`);
-}
-
-function openRegionDrawer(district) {
-  selectedDistrict = district;
-  ui.regionName.textContent = district.name;
-  refreshRegionDrawer();
-  ui.regionDrawer.classList.add('open');
-}
-
-function refreshRegionDrawer() {
-  if (!selectedDistrict) {
-    return;
-  }
-  const control = getDistrictControlData(selectedDistrict);
-  const controlIncome = selectedDistrict.streets
-    .filter((street) => street.owner === 'player')
-    .reduce((sum, street) => sum + street.income, 0);
-
-  ui.regionDetails.innerHTML = `
-    <p>Your Control: ${control.owned}/${control.total} streets (${control.controlPct}%)</p>
-    <p>District Income: ${formatMoney(controlIncome)}/tick</p>
-    <p>District Security Bonus: +${selectedDistrict.securityBoost} defense on takeovers here</p>
-    <p>Available actions: Collect protection, fortify district, or inspect streets.</p>
-  `;
-}
-
-function collectRegionProtection() {
-  if (!selectedDistrict) {
-    return;
-  }
-
-  const protectionIncome = selectedDistrict.streets
-    .filter((street) => street.owner === 'player')
-    .reduce((sum, street) => sum + Math.floor(street.income * 0.45), 0);
-
-  if (protectionIncome === 0) {
-    showToast('No controlled streets in this district yet.');
-    return;
-  }
-
-  player.money += protectionIncome;
-  player.respect += 6;
-  updateRank();
-  renderTopBar();
-  renderProfile();
-  refreshRegionDrawer();
-  showToast(`Protection collected: ${formatMoney(protectionIncome)}.`);
-}
-
-function fortifyRegion() {
-  if (!selectedDistrict) {
-    return;
-  }
-
-  const cost = 220 + selectedDistrict.securityBoost * 120;
-  if (player.money < cost) {
-    showToast(`Need ${formatMoney(cost)} to fortify ${selectedDistrict.name}.`);
-    return;
-  }
-
-  player.money -= cost;
-  selectedDistrict.securityBoost += 1;
-  player.respect += 10;
-  updateRank();
-  renderTopBar();
-  renderProfile();
-  refreshRegionDrawer();
-  showToast(`${selectedDistrict.name} fortified (+1 district defense).`);
-}
-
-function viewDistrictStreets() {
-  if (!selectedDistrict) {
-    return;
-  }
-  ui.regionDrawer.classList.remove('open');
-  showToast(`Viewing streets in ${selectedDistrict.name}.`);
-  const districtCards = Array.from(document.querySelectorAll('.district-card'));
-  const target = districtCards.find((card) => card.querySelector('h3')?.textContent === selectedDistrict.name);
-  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-}
-
-function openStreetDrawer(street) {
-  selectedStreet = street;
-  ui.streetName.textContent = `${street.name} · ${street.districtName}`;
-  refreshStreetDrawer();
-  ui.streetDrawer.classList.add('open');
-}
-
-function refreshStreetDrawer() {
-  if (!selectedStreet) {
-    return;
-  }
-
-  const districtDefenseBonus = getDistrictDefenseBonus(selectedStreet.districtName);
-  ui.streetDetails.innerHTML = `
-    <p>Owner: ${OWNER_LABELS[selectedStreet.owner]}</p>
-    <p>Income: ${formatMoney(selectedStreet.income)}/tick</p>
-    <p>Street Defense: ${selectedStreet.defense} (+${districtDefenseBonus} district bonus)</p>
-    <p>Your Attack: ${player.attack}</p>
-  `;
-
-  if (selectedStreet.owner === 'player') {
-    ui.takeoverBtn.disabled = true;
-    ui.takeoverBtn.textContent = 'Already Under Your Control';
-  } else {
-    ui.takeoverBtn.disabled = false;
-    ui.takeoverBtn.textContent = 'Attempt Takeover';
-  }
-}
-
-function attemptTakeover() {
-  if (!selectedStreet || selectedStreet.owner === 'player') {
-    return;
-  }
-
-  const districtBonus = getDistrictDefenseBonus(selectedStreet.districtName);
-  const attackRoll = player.attack + Math.floor(Math.random() * 10);
-  const defenseRoll = selectedStreet.defense + districtBonus + Math.floor(Math.random() * 10);
-
-  if (attackRoll > defenseRoll) {
-    selectedStreet.owner = 'player';
-    player.respect += 40;
-    const payout = Math.floor(selectedStreet.income * 1.5);
-    player.money += payout;
-    showToast(`Takeover successful! Bonus ${formatMoney(payout)} earned.`);
-  } else {
-    player.respect += 9;
-    showToast('Takeover failed. Build more power and retry.');
-  }
-
-  recalculateStats();
-  updateRank();
-  renderAll();
-  refreshStreetDrawer();
-  if (selectedDistrict) {
-    refreshRegionDrawer();
-  }
-}
-
-function collectIncomeTick() {
-  const income = getTotalIncomePerTick();
-  if (income > 0) {
-    player.money += income;
-    player.respect += 2 + player.ownedProperties;
-    updateRank();
-    renderTopBar();
-    renderProfile();
-  }
-}
-
-function switchPanel(target) {
-  ui.panels.forEach((panel) => panel.classList.remove('active'));
-  document.getElementById(`panel-${target}`).classList.add('active');
-
-  ui.navButtons.forEach((button) => {
-    button.classList.toggle('active', button.dataset.target === target);
+function renderLog() {
+  ui.activityLog.innerHTML = '';
+  player.log.forEach((entry) => {
+    const div = document.createElement('div');
+    div.className = 'log-item';
+    div.textContent = entry;
+    ui.activityLog.appendChild(div);
   });
 }
 
 function renderAll() {
   renderTopBar();
   renderRegionMap();
-  renderCityMap();
+  renderRegionMeta();
+  renderStreets();
+  renderShops();
   renderCrew();
   renderProperties();
-  renderItems();
-  renderProfile();
+  renderLog();
 }
 
 function init() {
-  recalculateStats();
+  addLog('Welcome boss. Select a region to begin your rise.');
+  ui.modalClose.addEventListener('click', () => ui.modal.classList.add('hidden'));
+
+  setInterval(() => {
+    updateTimersAndActions();
+    renderStreets();
+    renderShops();
+  }, 1000);
+
+  setInterval(() => {
+    passiveIncomeTick();
+    upkeepTick();
+    recalcLevel();
+    renderTopBar();
+    renderLog();
+  }, 6000);
+
   renderAll();
-
-  ui.navButtons.forEach((button) => {
-    button.addEventListener('click', () => switchPanel(button.dataset.target));
-  });
-
-  ui.closeRegionDrawer.addEventListener('click', () => ui.regionDrawer.classList.remove('open'));
-  ui.collectRegionBtn.addEventListener('click', collectRegionProtection);
-  ui.fortifyRegionBtn.addEventListener('click', fortifyRegion);
-  ui.viewStreetsBtn.addEventListener('click', viewDistrictStreets);
-
-  ui.closeDrawer.addEventListener('click', () => {
-    ui.streetDrawer.classList.remove('open');
-  });
-
-  ui.takeoverBtn.addEventListener('click', attemptTakeover);
-
-  setInterval(collectIncomeTick, 4500);
-  showToast('Welcome, Street Rat. Expand your empire.');
 }
 
 init();
