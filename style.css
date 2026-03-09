@@ -95,6 +95,57 @@ body {
   font-size: 0.88rem;
 }
 
+.region-map-wrap {
+  margin-bottom: 10px;
+}
+
+.map-subtitle {
+  font-size: 0.84rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--muted);
+  margin: 0 0 8px;
+}
+
+.region-map {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.region-zone {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: linear-gradient(145deg, #192033, #111625);
+  min-height: 74px;
+  padding: 9px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: left;
+  color: var(--text);
+  transition: all 0.15s ease;
+}
+
+.region-zone:hover,
+.region-zone:focus-visible,
+.region-zone.active {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(217, 164, 65, 0.2);
+  transform: translateY(-1px);
+}
+
+.region-zone .region-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.region-zone .region-meta {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
 .city-map {
   display: grid;
   gap: 10px;
@@ -267,6 +318,12 @@ body {
   margin: 6px 0;
   font-size: 0.82rem;
   color: var(--muted);
+}
+
+.drawer-actions {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
 }
 
 .profile-card {

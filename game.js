@@ -1,6 +1,5 @@
 /*
   Empire of Shadows - Mobile-first mafia strategy MVP
-  - Pure HTML/CSS/JS
   - Core loop: capture streets, recruit crew, buy properties/upgrades, collect income, rank up.
 */
 
@@ -70,6 +69,7 @@ const player = {
 
 const city = districtDefinitions.map((district, districtIndex) => ({
   name: district.name,
+  securityBoost: 0,
   streets: district.streets.map((streetName, streetIndex) => {
     const owner = ownerPool[(streetIndex + districtIndex) % ownerPool.length];
     const baseIncome = 24 + districtIndex * 7 + streetIndex * 5;
@@ -90,12 +90,20 @@ const ui = {
   rankValue: document.getElementById('rankValue'),
   respectValue: document.getElementById('respectValue'),
   cityMap: document.getElementById('cityMap'),
+  regionMap: document.getElementById('regionMap'),
   crewList: document.getElementById('crewList'),
   propertyList: document.getElementById('propertyList'),
   itemList: document.getElementById('itemList'),
   profileCard: document.getElementById('profileCard'),
   navButtons: document.querySelectorAll('.nav-btn'),
   panels: document.querySelectorAll('.panel'),
+  regionDrawer: document.getElementById('regionDrawer'),
+  regionName: document.getElementById('regionName'),
+  regionDetails: document.getElementById('regionDetails'),
+  collectRegionBtn: document.getElementById('collectRegionBtn'),
+  fortifyRegionBtn: document.getElementById('fortifyRegionBtn'),
+  viewStreetsBtn: document.getElementById('viewStreetsBtn'),
+  closeRegionDrawer: document.getElementById('closeRegionDrawer'),
   streetDrawer: document.getElementById('streetDrawer'),
   streetName: document.getElementById('streetName'),
   streetDetails: document.getElementById('streetDetails'),
@@ -105,6 +113,7 @@ const ui = {
 };
 
 let selectedStreet = null;
+let selectedDistrict = null;
 let toastTimer = null;
 
 function formatMoney(amount) {
@@ -142,6 +151,17 @@ function getTotalIncomePerTick() {
   return getStreetIncome() + getPropertyIncome();
 }
 
+function getDistrictControlData(district) {
+  const total = district.streets.length;
+  const owned = district.streets.filter((street) => street.owner === 'player').length;
+  return { total, owned, controlPct: Math.round((owned / total) * 100) };
+}
+
+function getDistrictDefenseBonus(districtName) {
+  const district = city.find((item) => item.name === districtName);
+  return district?.securityBoost || 0;
+}
+
 function recalculateStats() {
   const crewAttack = CREW_TYPES.reduce((sum, crew) => sum + getCount(player.crew, crew.id) * crew.attack, 0);
   const crewDefense = CREW_TYPES.reduce((sum, crew) => sum + getCount(player.crew, crew.id) * crew.defense, 0);
@@ -176,6 +196,26 @@ function renderTopBar() {
   ui.moneyValue.textContent = formatMoney(player.money);
   ui.rankValue.textContent = player.rank;
   ui.respectValue.textContent = `${Math.floor(player.respect)}`;
+}
+
+function renderRegionMap() {
+  ui.regionMap.innerHTML = '';
+  city.forEach((district) => {
+    const control = getDistrictControlData(district);
+    const zone = document.createElement('button');
+    zone.type = 'button';
+    zone.className = 'region-zone';
+    zone.dataset.district = district.name;
+    zone.innerHTML = `
+      <span class="region-title">${district.name}</span>
+      <span class="region-meta">Control: ${control.owned}/${control.total} (${control.controlPct}%)</span>
+    `;
+
+    zone.addEventListener('mouseenter', () => zone.classList.add('active'));
+    zone.addEventListener('mouseleave', () => zone.classList.remove('active'));
+    zone.addEventListener('click', () => openRegionDrawer(district));
+    ui.regionMap.appendChild(zone);
+  });
 }
 
 function renderCityMap() {
@@ -337,6 +377,85 @@ function purchaseItem(item) {
   showToast(`${item.name} purchased.`);
 }
 
+function openRegionDrawer(district) {
+  selectedDistrict = district;
+  ui.regionName.textContent = district.name;
+  refreshRegionDrawer();
+  ui.regionDrawer.classList.add('open');
+}
+
+function refreshRegionDrawer() {
+  if (!selectedDistrict) {
+    return;
+  }
+  const control = getDistrictControlData(selectedDistrict);
+  const controlIncome = selectedDistrict.streets
+    .filter((street) => street.owner === 'player')
+    .reduce((sum, street) => sum + street.income, 0);
+
+  ui.regionDetails.innerHTML = `
+    <p>Your Control: ${control.owned}/${control.total} streets (${control.controlPct}%)</p>
+    <p>District Income: ${formatMoney(controlIncome)}/tick</p>
+    <p>District Security Bonus: +${selectedDistrict.securityBoost} defense on takeovers here</p>
+    <p>Available actions: Collect protection, fortify district, or inspect streets.</p>
+  `;
+}
+
+function collectRegionProtection() {
+  if (!selectedDistrict) {
+    return;
+  }
+
+  const protectionIncome = selectedDistrict.streets
+    .filter((street) => street.owner === 'player')
+    .reduce((sum, street) => sum + Math.floor(street.income * 0.45), 0);
+
+  if (protectionIncome === 0) {
+    showToast('No controlled streets in this district yet.');
+    return;
+  }
+
+  player.money += protectionIncome;
+  player.respect += 6;
+  updateRank();
+  renderTopBar();
+  renderProfile();
+  refreshRegionDrawer();
+  showToast(`Protection collected: ${formatMoney(protectionIncome)}.`);
+}
+
+function fortifyRegion() {
+  if (!selectedDistrict) {
+    return;
+  }
+
+  const cost = 220 + selectedDistrict.securityBoost * 120;
+  if (player.money < cost) {
+    showToast(`Need ${formatMoney(cost)} to fortify ${selectedDistrict.name}.`);
+    return;
+  }
+
+  player.money -= cost;
+  selectedDistrict.securityBoost += 1;
+  player.respect += 10;
+  updateRank();
+  renderTopBar();
+  renderProfile();
+  refreshRegionDrawer();
+  showToast(`${selectedDistrict.name} fortified (+1 district defense).`);
+}
+
+function viewDistrictStreets() {
+  if (!selectedDistrict) {
+    return;
+  }
+  ui.regionDrawer.classList.remove('open');
+  showToast(`Viewing streets in ${selectedDistrict.name}.`);
+  const districtCards = Array.from(document.querySelectorAll('.district-card'));
+  const target = districtCards.find((card) => card.querySelector('h3')?.textContent === selectedDistrict.name);
+  target?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function openStreetDrawer(street) {
   selectedStreet = street;
   ui.streetName.textContent = `${street.name} · ${street.districtName}`;
@@ -349,10 +468,11 @@ function refreshStreetDrawer() {
     return;
   }
 
+  const districtDefenseBonus = getDistrictDefenseBonus(selectedStreet.districtName);
   ui.streetDetails.innerHTML = `
     <p>Owner: ${OWNER_LABELS[selectedStreet.owner]}</p>
     <p>Income: ${formatMoney(selectedStreet.income)}/tick</p>
-    <p>Street Defense: ${selectedStreet.defense}</p>
+    <p>Street Defense: ${selectedStreet.defense} (+${districtDefenseBonus} district bonus)</p>
     <p>Your Attack: ${player.attack}</p>
   `;
 
@@ -370,8 +490,9 @@ function attemptTakeover() {
     return;
   }
 
+  const districtBonus = getDistrictDefenseBonus(selectedStreet.districtName);
   const attackRoll = player.attack + Math.floor(Math.random() * 10);
-  const defenseRoll = selectedStreet.defense + Math.floor(Math.random() * 10);
+  const defenseRoll = selectedStreet.defense + districtBonus + Math.floor(Math.random() * 10);
 
   if (attackRoll > defenseRoll) {
     selectedStreet.owner = 'player';
@@ -388,6 +509,9 @@ function attemptTakeover() {
   updateRank();
   renderAll();
   refreshStreetDrawer();
+  if (selectedDistrict) {
+    refreshRegionDrawer();
+  }
 }
 
 function collectIncomeTick() {
@@ -412,6 +536,7 @@ function switchPanel(target) {
 
 function renderAll() {
   renderTopBar();
+  renderRegionMap();
   renderCityMap();
   renderCrew();
   renderProperties();
@@ -426,6 +551,11 @@ function init() {
   ui.navButtons.forEach((button) => {
     button.addEventListener('click', () => switchPanel(button.dataset.target));
   });
+
+  ui.closeRegionDrawer.addEventListener('click', () => ui.regionDrawer.classList.remove('open'));
+  ui.collectRegionBtn.addEventListener('click', collectRegionProtection);
+  ui.fortifyRegionBtn.addEventListener('click', fortifyRegion);
+  ui.viewStreetsBtn.addEventListener('click', viewDistrictStreets);
 
   ui.closeDrawer.addEventListener('click', () => {
     ui.streetDrawer.classList.remove('open');

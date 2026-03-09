@@ -27,8 +27,14 @@
         <section id="panel-map" class="panel active">
           <div class="panel-heading">
             <h1>City Control Map</h1>
-            <p>Tap a street to inspect and take over territory.</p>
+            <p>Hover or tap a region to inspect it, then tap streets to take over territory.</p>
           </div>
+
+          <section class="region-map-wrap" aria-label="Visual city districts">
+            <h2 class="map-subtitle">Visual District Map</h2>
+            <div id="regionMap" class="region-map"></div>
+          </section>
+
           <div id="cityMap" class="city-map"></div>
         </section>
 
@@ -72,6 +78,21 @@
         <button class="nav-btn" data-target="upgrades">Upgrades</button>
         <button class="nav-btn" data-target="profile">Profile</button>
       </nav>
+
+      <aside id="regionDrawer" class="street-drawer" aria-live="polite">
+        <div class="street-drawer-inner">
+          <div class="drawer-header">
+            <h2 id="regionName">Region</h2>
+            <button id="closeRegionDrawer" class="ghost-btn" type="button">Close</button>
+          </div>
+          <div id="regionDetails" class="drawer-body"></div>
+          <div class="drawer-actions">
+            <button id="collectRegionBtn" class="secondary-btn" type="button">Collect Protection</button>
+            <button id="fortifyRegionBtn" class="secondary-btn" type="button">Fortify District</button>
+            <button id="viewStreetsBtn" class="primary-btn" type="button">View Streets in District</button>
+          </div>
+        </div>
+      </aside>
 
       <aside id="streetDrawer" class="street-drawer" aria-live="polite">
         <div class="street-drawer-inner">
