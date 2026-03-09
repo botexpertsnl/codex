@@ -108,17 +108,53 @@ body {
 }
 
 .region-map {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  position: relative;
+  height: 290px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  overflow: hidden;
+  background:
+    linear-gradient(0deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px) 0 0 / 24px 24px,
+    radial-gradient(circle at 12% 90%, rgba(86, 119, 160, 0.18), transparent 32%),
+    radial-gradient(circle at 84% 90%, rgba(86, 119, 160, 0.18), transparent 32%),
+    linear-gradient(170deg, #121727, #0d111b);
   margin-bottom: 10px;
 }
 
+.region-map::before,
+.region-map::after {
+  content: '';
+  position: absolute;
+  background: rgba(220, 180, 95, 0.18);
+  z-index: 0;
+}
+
+.region-map::before {
+  width: 160%;
+  height: 10px;
+  top: 46%;
+  left: -22%;
+  transform: rotate(-7deg);
+}
+
+.region-map::after {
+  width: 10px;
+  height: 170%;
+  left: 50%;
+  top: -33%;
+  transform: rotate(8deg);
+}
+
 .region-zone {
+  position: absolute;
+  left: var(--x);
+  top: var(--y);
+  width: var(--w);
+  height: var(--h);
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: linear-gradient(145deg, #192033, #111625);
-  min-height: 74px;
+  background: linear-gradient(145deg, rgba(25, 32, 51, 0.95), rgba(17, 22, 37, 0.95));
   padding: 9px;
   display: flex;
   flex-direction: column;
@@ -126,6 +162,7 @@ body {
   text-align: left;
   color: var(--text);
   transition: all 0.15s ease;
+  z-index: 1;
 }
 
 .region-zone:hover,

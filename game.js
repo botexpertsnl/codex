@@ -50,6 +50,14 @@ const districtDefinitions = [
   { name: 'Old Town', streets: ['Bell Tower Rd', 'Cathedral Lane', 'Cobble Street', 'Raven Square', 'Heritage Way'] }
 ];
 
+const districtMapLayout = {
+  Downtown: { x: 33, y: 20, w: 34, h: 24 },
+  Harbor: { x: 5, y: 58, w: 34, h: 26 },
+  Chinatown: { x: 62, y: 56, w: 33, h: 26 },
+  'Industrial Zone': { x: 5, y: 20, w: 26, h: 30 },
+  'Old Town': { x: 71, y: 18, w: 24, h: 30 }
+};
+
 const player = {
   name: 'Vincenzo "Vin" Russo',
   rank: 'Street Rat',
@@ -202,10 +210,15 @@ function renderRegionMap() {
   ui.regionMap.innerHTML = '';
   city.forEach((district) => {
     const control = getDistrictControlData(district);
+    const layout = districtMapLayout[district.name] || { x: 10, y: 10, w: 30, h: 22 };
     const zone = document.createElement('button');
     zone.type = 'button';
     zone.className = 'region-zone';
     zone.dataset.district = district.name;
+    zone.style.setProperty('--x', `${layout.x}%`);
+    zone.style.setProperty('--y', `${layout.y}%`);
+    zone.style.setProperty('--w', `${layout.w}%`);
+    zone.style.setProperty('--h', `${layout.h}%`);
     zone.innerHTML = `
       <span class="region-title">${district.name}</span>
       <span class="region-meta">Control: ${control.owned}/${control.total} (${control.controlPct}%)</span>
