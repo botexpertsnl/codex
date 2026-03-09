@@ -135,6 +135,28 @@ body {
   gap: 8px;
 }
 
+.summary-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.sum-pill {
+  font-size: 0.68rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: rgba(0,0,0,0.22);
+  color: var(--txt);
+}
+
+.crew-member-row {
+  align-items: flex-start;
+  border-bottom: 1px dashed var(--border);
+  padding-bottom: 5px;
+}
+
 .street-card,
 .shop-card,
 .crew-card,
