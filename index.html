@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Empire of Shadows - Mafia Strategy MVP</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="top-bar">
+        <div class="stat-pill">
+          <span class="label">Money</span>
+          <span id="moneyValue" class="value">$0</span>
+        </div>
+        <div class="stat-pill">
+          <span class="label">Rank</span>
+          <span id="rankValue" class="value">Street Rat</span>
+        </div>
+        <div class="stat-pill">
+          <span class="label">Respect</span>
+          <span id="respectValue" class="value">0</span>
+        </div>
+      </header>
+
+      <main class="main-content">
+        <section id="panel-map" class="panel active">
+          <div class="panel-heading">
+            <h1>City Control Map</h1>
+            <p>Tap a street to inspect and take over territory.</p>
+          </div>
+          <div id="cityMap" class="city-map"></div>
+        </section>
+
+        <section id="panel-crew" class="panel">
+          <div class="panel-heading">
+            <h1>Crew Recruitment</h1>
+            <p>Grow your muscle for stronger takeovers.</p>
+          </div>
+          <div id="crewList" class="card-list"></div>
+        </section>
+
+        <section id="panel-properties" class="panel">
+          <div class="panel-heading">
+            <h1>Properties</h1>
+            <p>Buy businesses for passive income.</p>
+          </div>
+          <div id="propertyList" class="card-list"></div>
+        </section>
+
+        <section id="panel-upgrades" class="panel">
+          <div class="panel-heading">
+            <h1>Upgrades & Protection</h1>
+            <p>Increase attack and defense to survive city wars.</p>
+          </div>
+          <div id="itemList" class="card-list"></div>
+        </section>
+
+        <section id="panel-profile" class="panel">
+          <div class="panel-heading">
+            <h1>Boss Profile</h1>
+            <p>Your criminal empire stats.</p>
+          </div>
+          <div id="profileCard" class="profile-card"></div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="Primary">
+        <button class="nav-btn active" data-target="map">Map</button>
+        <button class="nav-btn" data-target="crew">Crew</button>
+        <button class="nav-btn" data-target="properties">Properties</button>
+        <button class="nav-btn" data-target="upgrades">Upgrades</button>
+        <button class="nav-btn" data-target="profile">Profile</button>
+      </nav>
+
+      <aside id="streetDrawer" class="street-drawer" aria-live="polite">
+        <div class="street-drawer-inner">
+          <div class="drawer-header">
+            <h2 id="streetName">Street</h2>
+            <button id="closeDrawer" class="ghost-btn" type="button">Close</button>
+          </div>
+          <div id="streetDetails" class="drawer-body"></div>
+          <button id="takeoverBtn" class="primary-btn" type="button">Attempt Takeover</button>
+        </div>
+      </aside>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+
+    <script src="game.js"></script>
+  </body>
+</html>
