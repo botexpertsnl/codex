@@ -414,6 +414,18 @@ function renderRegionMeta() {
   `;
 }
 
+
+function getOwnedShopCount(street) {
+  return street.shops.filter((shop) => shop.paymentStatus === 'paying protection').length;
+}
+
+function showStreetShopPopup(street) {
+  const shopLines = street.shops
+    .map((shop) => `• ${shop.shopName} (${shop.paymentStatus})`)
+    .join('\n');
+  showModal('Street Shops', `${street.name}\nOwned shops: ${getOwnedShopCount(street)}/${street.shops.length}\n\n${shopLines}`);
+}
+
 function ownerBadge(owner) {
   if (owner === 'player') return '<span class="badge player">Player</span>';
   if (owner === 'rival') return '<span class="badge rival">Rival</span>';
@@ -447,10 +459,11 @@ function renderStreets() {
     card.className = 'street-card';
     card.innerHTML = `
       <div class="row"><strong>${street.name}</strong>${ownerBadge(street.ownerType)}</div>
-      <div class="muted">Shops ${street.shops.length} · Stored ${fmtMoney(stored)} / ${fmtMoney(maxStorage)} · Street Defense ${street.difficulty}</div>
+      <div class="muted">Shops owned: ${getOwnedShopCount(street)}/${street.shops.length} · Stored ${fmtMoney(stored)} / ${fmtMoney(maxStorage)} · Street Defense ${street.difficulty}</div>
       <div class="muted">Assigned Crew: ${assignedCrew} · Required Crew: ${street.requiredCrewPresence} · Cooldown ${cooldown}s</div>
       <div class="inline-actions">
         <button class="btn dark" data-action="select" data-street="${street.id}">Select</button>
+        <button class="btn dark" data-action="viewshops" data-street="${street.id}">View Shops</button>
         <button class="btn primary" data-action="takeover" data-street="${street.id}" ${cooldown > 0 ? 'disabled' : ''}>Take Over Street</button>
         <button class="btn dark" data-action="collect" data-street="${street.id}">Collect Street</button>
       </div>
@@ -459,6 +472,7 @@ function renderStreets() {
     card.querySelectorAll('button').forEach((btn) => btn.addEventListener('click', () => {
       const sid = btn.dataset.street;
       if (btn.dataset.action === 'select') { player.selectedStreetId = sid; renderAll(); }
+      if (btn.dataset.action === 'viewshops') showStreetShopPopup(street);
       if (btn.dataset.action === 'takeover') attemptTakeover(sid);
       if (btn.dataset.action === 'collect') collectStreetIncome(sid);
     }));
